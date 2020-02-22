@@ -248,7 +248,7 @@ namespace des {
 		_block = 0;
 		for (uint8_t i = 0; i < 64; i++) {
 			_block <<= 1;
-			_block |= (copy >> (64 - permutation_table[i] - 1)) & 0b1;
+			_block |= (copy >> (64 - permutation_table[i])) & 0b1;
 		}
 	}
 
@@ -258,7 +258,7 @@ namespace des {
 		_block = 0;
 		for (uint8_t i = 0; i < 64; i++) {
 			_block <<= 1;
-			_block |= (copy >> (64 - inverse_permutation_table[i] - 1)) & 0b1;
+			_block |= (copy >> (64 - inverse_permutation_table[i])) & 0b1;
 		}
 	}
 
