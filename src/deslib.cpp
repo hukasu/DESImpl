@@ -5,6 +5,7 @@
 
 namespace des {
 	uint64_t readLong(std::istream& _stream);
+	void writeLong(std::ostream& _stream, uint64_t _value);
 	void permute(uint64_t& _block);
 	void inversePermute(uint64_t& _block);
 	void roundCompute(uint32_t& _l_block, uint32_t& _r_block, uint64_t _scheduled_key);
@@ -242,6 +243,15 @@ namespace des {
 		return k;
 	}
 
+	void writeLong(std::ostream& _stream, uint64_t _value) {
+		std::array<uint8_t, 8> data;
+		for (uint8_t i = 0; i < 8; i++) {
+			data[7 - i] = static_cast<uint8_t>(_value & 0xff);
+			_value >>= 8;
+		}
+		_stream.write(reinterpret_cast<char*>(data.data()), 8);
+	}
+
 	/** Bit permutation */
 	void permute(uint64_t& _block) {
 		uint64_t copy = _block;
@@ -287,10 +297,10 @@ namespace des {
 	* Result is 48-bit wide.
 	*/
 	uint64_t eBitSelection(uint32_t _block) {
-		uint32_t res_block = 0;
+		uint64_t res_block = 0;
 		for (uint8_t i = 0; i < 48; i++) {
 			res_block <<= 1;
-			res_block |= (_block >> (48 - e_bit_selection_table[i] - 1)) & 0b1;
+			res_block |= (_block >> (32 - e_bit_selection_table[i])) & 0b1;
 		}
 		return res_block;
 	}
@@ -309,7 +319,7 @@ namespace des {
 		uint32_t res_block = 0;
 		for (uint8_t i = 0; i < 32; i++) {
 			res_block <<= 1;
-			res_block |= (_block >> (32 - round_permutation_table[i] - 1)) & 0b1;
+			res_block |= (_block >> (32 - round_permutation_table[i])) & 0b1;
 		}
 		return res_block;
 	}
@@ -397,8 +407,8 @@ namespace des {
 		union {
 			uint64_t w_block;
 			struct {
-				uint32_t l_block;
 				uint32_t r_block;
+				uint32_t l_block;
 			};
 		};
 
@@ -416,7 +426,7 @@ namespace des {
 			}
 			std::swap(l_block, r_block); // L16R16 -> R16L16
 			inversePermute(w_block); // IP^-1
-			_output_cypher.write(reinterpret_cast<char*>(&w_block), 8);
+			writeLong(_output_cypher, w_block);
 		}
 		if (data_length % 8) {
 			w_block = 0;
@@ -427,7 +437,7 @@ namespace des {
 			}
 			std::swap(l_block, r_block); // L16R16 -> R16L16
 			inversePermute(w_block); // IP^-1
-			_output_cypher.write(reinterpret_cast<char*>(&w_block), 8);
+			writeLong(_output_cypher, w_block);
 		}
 	}
 
@@ -435,8 +445,8 @@ namespace des {
 		union {
 			uint64_t w_block;
 			struct {
-				uint32_t l_block;
 				uint32_t r_block;
+				uint32_t l_block;
 			};
 		};
 
@@ -448,13 +458,13 @@ namespace des {
 
 		for (uint64_t i = 0; i < data_length; i += 8) {
 			w_block = readLong(_input_cypher);
-			inversePermute(w_block); // IP^-1
-			std::swap(l_block, r_block); // L16R16 -> R16L16
-			for (uint8_t i = 0; i < 16; i++) {
-				roundCompute(l_block, r_block, key_schedule[i]);
-			}
 			permute(w_block); // IP
-			_output_data.write(reinterpret_cast<char*>(&w_block), 8);
+			for (uint8_t i = 0; i < 16; i++) {
+				roundCompute(l_block, r_block, key_schedule[15 - i]);
+			}
+			std::swap(l_block, r_block); // L16R16 -> R16L16
+			inversePermute(w_block); // IP^-1
+			writeLong(_output_data, w_block);
 		}
 	}
 
