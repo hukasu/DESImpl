@@ -463,7 +463,7 @@ namespace des {
 
 		// Triple DES Pass 1
 		std::stringstream pass1_output(std::ios::binary | std::ios::in | std::ios::out);
-		_encrypt(_input_data, pass1_output, keys[1]);
+		_encrypt(_input_data, pass1_output, keys[0]);
 
 		// Triple DES Pass 2
 		std::stringstream pass2_output(std::ios::binary | std::ios::in | std::ios::out);
@@ -478,13 +478,13 @@ namespace des {
 
 		// Triple DES Pass 1
 		std::stringstream pass1_output(std::ios::binary | std::ios::in | std::ios::out);
-		_decrypt(_input_cypher, pass1_output, keys[1]);
+		_decrypt(_input_cypher, pass1_output, keys[2]);
 
 		// Triple DES Pass 2
 		std::stringstream pass2_output(std::ios::binary | std::ios::in | std::ios::out);
 		_encrypt(pass1_output, pass2_output, keys[1]);
 
 		// Triple DES Pass 3
-		_decrypt(pass2_output, _output_data, keys[2]);
+		_decrypt(pass2_output, _output_data, keys[0]);
 	}
 }
