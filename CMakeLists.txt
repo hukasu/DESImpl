@@ -7,3 +7,7 @@ add_library(
 	STATIC
 	src/deslib.cpp
 )
+target_compile_features(
+	DESImplLib
+	PUBLIC cxx_std_14
+)
