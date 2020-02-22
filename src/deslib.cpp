@@ -426,7 +426,7 @@ namespace des {
 		// Triple DES Pass 2
 		std::istream& pass2_input = pass1_output;
 		std::stringstream pass2_output(std::ios::binary | std::ios::in | std::ios::out);
-		std::array<uint64_t, 16> key_schedule = keySchedule(keys[1]); // KS
+		key_schedule = keySchedule(keys[1]); // KS
 		for (uint64_t i = 0; i < data_length; i += 8) {
 			pass2_input.read(reinterpret_cast<char*>(&w_block), 8);
 			permute(w_block); // IP
@@ -441,7 +441,7 @@ namespace des {
 		// Triple DES Pass 3
 		std::istream& pass3_input = pass2_output;
 		std::ostream& pass3_output = _output_cypher;
-		std::array<uint64_t, 16> key_schedule = keySchedule(keys[2]); // KS
+		key_schedule = keySchedule(keys[2]); // KS
 		for (uint64_t i = 0; i < data_length; i += 8) {
 			pass3_input.read(reinterpret_cast<char*>(&w_block), 8);
 			permute(w_block); // IP
@@ -487,7 +487,7 @@ namespace des {
 		// Triple DES Pass 2
 		std::istream& pass2_input = _input_cypher;
 		std::stringstream pass2_output(std::ios::binary | std::ios::in | std::ios::out);
-		std::array<uint64_t, 16> key_schedule = keySchedule(keys[1]); // KS
+		key_schedule = keySchedule(keys[1]); // KS
 		for (uint64_t i = 0; i < data_length; i += 8) {
 			pass2_input.read(reinterpret_cast<char*>(&w_block), 8);
 			inversePermute(w_block); // IP^-1
@@ -502,7 +502,7 @@ namespace des {
 		// Triple DES Pass 3
 		std::istream& pass3_input = _input_cypher;
 		std::ostream& pass3_output = _output_data;
-		std::array<uint64_t, 16> key_schedule = keySchedule(keys[0]); // KS
+		key_schedule = keySchedule(keys[0]); // KS
 		for (uint64_t i = 0; i < data_length; i += 8) {
 			pass3_input.read(reinterpret_cast<char*>(&w_block), 8);
 			inversePermute(w_block); // IP^-1
