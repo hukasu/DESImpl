@@ -4,6 +4,7 @@
 #include <sstream>
 
 namespace des {
+	uint64_t readLong(std::istream& _stream);
 	void permute(uint64_t& _block);
 	void inversePermute(uint64_t& _block);
 	void roundCompute(uint32_t& _l_block, uint32_t& _r_block, uint64_t _scheduled_key);
@@ -16,6 +17,9 @@ namespace des {
 	uint64_t keySchedulePermute2(uint64_t _key);
 	uint8_t keyScheduleShift(uint8_t _iteration);
 	std::array<uint64_t, 3> readKeys(std::istream& _key_stream);
+
+	void _encrypt(std::istream& _input_data, std::ostream& _output_cypher, uint64_t _key);
+	void _decrypt(std::istream& _input_cypher, std::ostream& _output_data, uint64_t _key);
 
 	static std::array<uint8_t, 64> permutation_table {
 		58, 50, 42, 34, 26, 18, 10,  2,
@@ -226,13 +230,25 @@ namespace des {
 		46, 42, 50, 36, 29, 32
 	};
 
+	/** Read Long */
+	uint64_t readLong(std::istream& _stream) {
+		uint64_t k = 0;
+		std::array<uint8_t, 8> data;
+		_stream.read(reinterpret_cast<char*>(data.data()), 8);
+		for (uint8_t i = 0; i < 8; i++) {
+			k <<= 8;
+			k |= data[i];
+		}
+		return k;
+	}
+
 	/** Bit permutation */
 	void permute(uint64_t& _block) {
 		uint64_t copy = _block;
 		_block = 0;
-		for (uint8_t i = 1; i <= 64; i++) {
+		for (uint8_t i = 0; i < 64; i++) {
 			_block <<= 1;
-			_block |= (copy >> (64 - permutation_table[i])) & 0b1;
+			_block |= (copy >> (64 - permutation_table[i] - 1)) & 0b1;
 		}
 	}
 
@@ -240,9 +256,9 @@ namespace des {
 	void inversePermute(uint64_t& _block) {
 		uint64_t copy = _block;
 		_block = 0;
-		for (uint8_t i = 1; i <= 64; i++) {
+		for (uint8_t i = 0; i < 64; i++) {
 			_block <<= 1;
-			_block |= (copy >> (64 - inverse_permutation_table[i])) & 0b1;
+			_block |= (copy >> (64 - inverse_permutation_table[i] - 1)) & 0b1;
 		}
 	}
 
@@ -258,9 +274,9 @@ namespace des {
 		uint64_t e_block = eBitSelection(_block); // E(R)
 		uint64_t ekn_block = _scheduled_key ^ e_block; // B1B2...B8 = K XOR E(R)
 		uint32_t s_block = 0;
-		for (uint8_t i = 1; i <= 8; i++) {
+		for (uint8_t i = 0; i < 8; i++) {
 			s_block <<= 4;
-			uint8_t b_block = ((ekn_block >> (48 - (i * 6))) & 0x3f);
+			uint8_t b_block = ((ekn_block >> (48 - ((i + 1) * 6))) & 0x3f);
 			s_block |= sBitSelection(i, b_block); // Si(Bi)
 		}
 		uint32_t p_block = roundPermute(s_block); // P(S1(B1)S2(B2)...S8(B8))
@@ -272,9 +288,9 @@ namespace des {
 	*/
 	uint64_t eBitSelection(uint32_t _block) {
 		uint32_t res_block = 0;
-		for (uint8_t i = 1; i <= 48; i++) {
+		for (uint8_t i = 0; i < 48; i++) {
 			res_block <<= 1;
-			res_block |= (_block >> (48 - round_permutation_table[i])) & 0b1;
+			res_block |= (_block >> (48 - e_bit_selection_table[i] - 1)) & 0b1;
 		}
 		return res_block;
 	}
@@ -291,9 +307,9 @@ namespace des {
 	/** Bit permutation */
 	uint32_t roundPermute(uint32_t _block) {
 		uint32_t res_block = 0;
-		for (uint8_t i = 1; i <= 32; i++) {
+		for (uint8_t i = 0; i < 32; i++) {
 			res_block <<= 1;
-			res_block |= (_block >> (32 - round_permutation_table[i])) & 0b1;
+			res_block |= (_block >> (32 - round_permutation_table[i] - 1)) & 0b1;
 		}
 		return res_block;
 	}
@@ -304,30 +320,25 @@ namespace des {
 	std::array<uint64_t, 16> keySchedule(uint64_t _key) {
 		std::array<uint64_t, 16> scheduled_key;
 		uint64_t key_block = keySchedulePermute1(_key);
-		for (uint8_t i = 1; i <= 16; i++) {
+		for (uint8_t i = 0; i < 16; i++) {
 			if (keyScheduleShift(i) == 1) {
 				key_block <<= 1;
-				uint64_t round = (key_block & 0x1000000010000000);
-				key_block = (key_block & (~0x1000000010000000)) | (round >> 28);
+				uint64_t round = (key_block & 0x0100000010000000);
+				key_block = (key_block & (~0x0100000010000000)) | (round >> 28);
 			} else {
 				key_block <<= 2;
-				uint64_t round = (key_block & 0x3000000030000000);
-				key_block = (key_block & (~0x3000000030000000)) | (round >> 28);
+				uint64_t round = (key_block & 0x0300000030000000);
+				key_block = (key_block & (~0x0300000030000000)) | (round >> 28);
 			}
-			scheduled_key[i - 1] = keySchedulePermute2(key_block);
+			scheduled_key[i] = keySchedulePermute2(key_block);
 		}
 		return std::move(scheduled_key);
 	}
 
 	/** Key Scheduling Permute 1 */
 	uint64_t keySchedulePermute1(uint64_t _key) {
-		uint32_t res_block = 0;
-		for (uint8_t i = 1; i <= 28; i++) {
-			res_block <<= 1;
-			res_block |= (_key >> (64 - (key_permutation_table_1[i]))) & 0b1;
-		}
-		res_block <<= 7;
-		for (uint8_t i = 29; i <= 56; i++) {
+		uint64_t res_block = 0;
+		for (uint8_t i = 0; i < 56; i++) {
 			res_block <<= 1;
 			res_block |= (_key >> (64 - key_permutation_table_1[i])) & 0b1;
 		}
@@ -336,17 +347,17 @@ namespace des {
 
 	/** Key Scheduling Permute 2 */
 	uint64_t keySchedulePermute2(uint64_t _key) {
-		uint32_t res_block = 0;
-		for (uint8_t i = 1; i <= 48; i++) {
+		uint64_t res_block = 0;
+		for (uint8_t i = 0; i < 48; i++) {
 			res_block <<= 1;
-			res_block |= (_key >> (48 - key_permutation_table_1[i])) & 0b1;
+			res_block |= (_key >> (56 - key_permutation_table_2[i])) & 0b1;
 		}
 		return res_block;
 	}
 
 	/** Key Scheduling Shift */
 	uint8_t keyScheduleShift(uint8_t _iteration) {
-		if (_iteration == 1 || _iteration == 2 || _iteration == 9 || _iteration == 16) return 1;
+		if (_iteration == 0 || _iteration == 1 || _iteration == 8 || _iteration == 15) return 1;
 		else return 2;
 	}
 
@@ -358,32 +369,31 @@ namespace des {
 		if (key_size % 8) throw std::runtime_error("Key does not have size multiple of 64 bits.");
 		if (key_size > 24) throw std::runtime_error("Operation with more than 3 keys is undefined. Use up to 3 keys (64, 128, 196 bits).");
 		uint8_t key_count = static_cast<uint8_t>(key_size) / 8;
+
+		uint64_t k;
 		if (key_count == 1) {
-			uint64_t k;
-			_key_stream.read(reinterpret_cast<char*>(&k), 8);
+			k = readLong(_key_stream);
 			keys[0] = k;
 			keys[1] = k;
 			keys[2] = k;
 		} else if (key_count == 2) {
-			uint64_t k;
-			_key_stream.read(reinterpret_cast<char*>(&k), 8);
+			k = readLong(_key_stream);
 			keys[0] = k;
 			keys[2] = k;
-			_key_stream.read(reinterpret_cast<char*>(&k), 8);
+			k = readLong(_key_stream);
 			keys[1] = k;
 		} else if (key_count == 3) {
-			uint64_t k;
-			_key_stream.read(reinterpret_cast<char*>(&k), 8);
+			k = readLong(_key_stream);
 			keys[0] = k;
-			_key_stream.read(reinterpret_cast<char*>(&k), 8);
+			k = readLong(_key_stream);
 			keys[1] = k;
-			_key_stream.read(reinterpret_cast<char*>(&k), 8);
+			k = readLong(_key_stream);
 			keys[2] = k;
 		}
 		return std::move(keys);
 	}
 
-	void encrypt(std::istream& _input_data, std::ostream& _output_cypher, std::istream& _key_stream) {
+	void _encrypt(std::istream& _input_data, std::ostream& _output_cypher, uint64_t _key) {
 		union {
 			uint64_t w_block;
 			struct {
@@ -391,71 +401,37 @@ namespace des {
 				uint32_t r_block;
 			};
 		};
-
-		std::array<uint64_t, 3> keys = readKeys(_key_stream);
 
 		_input_data.seekg(0, std::ios::end);
 		uint64_t data_length = _input_data.tellg();
 		_input_data.seekg(0, std::ios::beg);
 
-		// Triple DES Pass 1
-		std::istream& pass1_input = _input_data;
-		std::stringstream pass1_output(std::ios::binary | std::ios::in | std::ios::out);
-		std::array<uint64_t, 16> key_schedule = keySchedule(keys[0]); // KS
+		std::array<uint64_t, 16> key_schedule = keySchedule(_key); // KS
+
 		for (uint64_t i = 0; i < data_length; i += 8) {
-			pass1_input.read(reinterpret_cast<char*>(&w_block), 8);
+			w_block = readLong(_input_data);
 			permute(w_block); // IP
 			for (uint8_t i = 0; i < 16; i++) {
 				roundCompute(l_block, r_block, key_schedule[i]);
 			}
 			std::swap(l_block, r_block); // L16R16 -> R16L16
 			inversePermute(w_block); // IP^-1
-			pass1_output.write(reinterpret_cast<char*>(&w_block), 8);
+			_output_cypher.write(reinterpret_cast<char*>(&w_block), 8);
 		}
 		if (data_length % 8) {
 			w_block = 0;
-			pass1_input.read(reinterpret_cast<char*>(&w_block), data_length % 8);
+			_input_data.read(reinterpret_cast<char*>(&w_block), data_length % 8);
 			permute(w_block); // IP
 			for (uint8_t i = 0; i < 16; i++) {
 				roundCompute(l_block, r_block, key_schedule[i]);
 			}
 			std::swap(l_block, r_block); // L16R16 -> R16L16
 			inversePermute(w_block); // IP^-1
-			pass1_output.write(reinterpret_cast<char*>(&w_block), 8);
-		}
-
-		// Triple DES Pass 2
-		std::istream& pass2_input = pass1_output;
-		std::stringstream pass2_output(std::ios::binary | std::ios::in | std::ios::out);
-		key_schedule = keySchedule(keys[1]); // KS
-		for (uint64_t i = 0; i < data_length; i += 8) {
-			pass2_input.read(reinterpret_cast<char*>(&w_block), 8);
-			permute(w_block); // IP
-			for (uint8_t i = 0; i < 16; i++) {
-				roundCompute(l_block, r_block, key_schedule[i]);
-			}
-			std::swap(l_block, r_block); // L16R16 -> R16L16
-			inversePermute(w_block); // IP^-1
-			pass2_output.write(reinterpret_cast<char*>(&w_block), 8);
-		}
-
-		// Triple DES Pass 3
-		std::istream& pass3_input = pass2_output;
-		std::ostream& pass3_output = _output_cypher;
-		key_schedule = keySchedule(keys[2]); // KS
-		for (uint64_t i = 0; i < data_length; i += 8) {
-			pass3_input.read(reinterpret_cast<char*>(&w_block), 8);
-			permute(w_block); // IP
-			for (uint8_t i = 0; i < 16; i++) {
-				roundCompute(l_block, r_block, key_schedule[i]);
-			}
-			std::swap(l_block, r_block); // L16R16 -> R16L16
-			inversePermute(w_block); // IP^-1
-			pass3_output.write(reinterpret_cast<char*>(&w_block), 8);
+			_output_cypher.write(reinterpret_cast<char*>(&w_block), 8);
 		}
 	}
 
-	void decrypt(std::istream& _input_cypher, std::ostream& _output_data, std::istream& _key_stream) {
+	void _decrypt(std::istream& _input_cypher, std::ostream& _output_data, uint64_t _key) {
 		union {
 			uint64_t w_block;
 			struct {
@@ -464,66 +440,51 @@ namespace des {
 			};
 		};
 
-		std::array<uint64_t, 3> keys = readKeys(_key_stream);
-
 		_input_cypher.seekg(0, std::ios::end);
 		uint64_t data_length = _input_cypher.tellg();
 		_input_cypher.seekg(0, std::ios::beg);
 
-		// Triple DES Pass 1
-		std::istream& pass1_input = _input_cypher;
-		std::stringstream pass1_output(std::ios::binary | std::ios::in | std::ios::out);
-		std::array<uint64_t, 16> key_schedule = keySchedule(keys[2]); // KS
+		std::array<uint64_t, 16> key_schedule = keySchedule(_key); // KS
+
 		for (uint64_t i = 0; i < data_length; i += 8) {
-			pass1_input.read(reinterpret_cast<char*>(&w_block), 8);
+			w_block = readLong(_input_cypher);
 			inversePermute(w_block); // IP^-1
 			std::swap(l_block, r_block); // L16R16 -> R16L16
 			for (uint8_t i = 0; i < 16; i++) {
-				roundCompute(l_block, r_block, key_schedule[16 - i - 1]);
+				roundCompute(l_block, r_block, key_schedule[i]);
 			}
 			permute(w_block); // IP
-			pass1_output.write(reinterpret_cast<char*>(&w_block), 8);
+			_output_data.write(reinterpret_cast<char*>(&w_block), 8);
 		}
+	}
+
+	void encrypt(std::istream& _input_data, std::ostream& _output_cypher, std::istream& _key_stream) {
+		std::array<uint64_t, 3> keys = readKeys(_key_stream);
+
+		// Triple DES Pass 1
+		std::stringstream pass1_output(std::ios::binary | std::ios::in | std::ios::out);
+		_encrypt(_input_data, pass1_output, keys[1]);
 
 		// Triple DES Pass 2
-		std::istream& pass2_input = _input_cypher;
 		std::stringstream pass2_output(std::ios::binary | std::ios::in | std::ios::out);
-		key_schedule = keySchedule(keys[1]); // KS
-		for (uint64_t i = 0; i < data_length; i += 8) {
-			pass2_input.read(reinterpret_cast<char*>(&w_block), 8);
-			inversePermute(w_block); // IP^-1
-			std::swap(l_block, r_block); // L16R16 -> R16L16
-			for (uint8_t i = 0; i < 16; i++) {
-				roundCompute(l_block, r_block, key_schedule[16 - i - 1]);
-			}
-			permute(w_block); // IP
-			pass2_output.write(reinterpret_cast<char*>(&w_block), 8);
-		}
+		_decrypt(pass1_output, pass2_output, keys[1]);
 
 		// Triple DES Pass 3
-		std::istream& pass3_input = _input_cypher;
-		std::ostream& pass3_output = _output_data;
-		key_schedule = keySchedule(keys[0]); // KS
-		for (uint64_t i = 0; i < data_length; i += 8) {
-			pass3_input.read(reinterpret_cast<char*>(&w_block), 8);
-			inversePermute(w_block); // IP^-1
-			std::swap(l_block, r_block); // L16R16 -> R16L16
-			for (uint8_t i = 0; i < 16; i++) {
-				roundCompute(l_block, r_block, key_schedule[16 - i - 1]);
-			}
-			permute(w_block); // IP
-			pass3_output.write(reinterpret_cast<char*>(&w_block), 8);
-		}
-		if (data_length % 8) {
-			w_block = 0;
-			pass1_input.read(reinterpret_cast<char*>(&w_block), 8);
-			inversePermute(w_block); // IP^-1
-			std::swap(l_block, r_block); // L16R16 -> R16L16
-			for (uint8_t i = 0; i < 16; i++) {
-				roundCompute(l_block, r_block, key_schedule[16 - i - 1]);
-			}
-			permute(w_block); // IP
-			pass1_output.write(reinterpret_cast<char*>(&w_block), data_length % 8);
-		}
+		_encrypt(pass2_output, _output_cypher, keys[2]);
+	}
+
+	void decrypt(std::istream& _input_cypher, std::ostream& _output_data, std::istream& _key_stream) {
+		std::array<uint64_t, 3> keys = readKeys(_key_stream);
+
+		// Triple DES Pass 1
+		std::stringstream pass1_output(std::ios::binary | std::ios::in | std::ios::out);
+		_decrypt(_input_cypher, pass1_output, keys[1]);
+
+		// Triple DES Pass 2
+		std::stringstream pass2_output(std::ios::binary | std::ios::in | std::ios::out);
+		_encrypt(pass1_output, pass2_output, keys[1]);
+
+		// Triple DES Pass 3
+		_decrypt(pass2_output, _output_data, keys[2]);
 	}
 }
