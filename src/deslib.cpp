@@ -356,7 +356,8 @@ namespace des {
 		size_t key_size = _key_stream.tellg();
 		_key_stream.seekg(0, std::ios::beg);
 		if (key_size % 8) throw std::runtime_error("Key does not have size multiple of 64 bits.");
-		uint8_t key_count = key_size / 8;
+		if (key_size > 24) throw std::runtime_error("Operation with more than 3 keys is undefined. Use up to 3 keys (64, 128, 196 bits).");
+		uint8_t key_count = static_cast<uint8_t>(key_size) / 8;
 		if (key_count == 1) {
 			uint64_t k;
 			_key_stream.read(reinterpret_cast<char*>(&k), 8);
@@ -378,7 +379,7 @@ namespace des {
 			keys[1] = k;
 			_key_stream.read(reinterpret_cast<char*>(&k), 8);
 			keys[2] = k;
-		} else throw std::runtime_error("Operation with more than 3 keys is undefined. Use up to 3 keys (64, 128, 196 bits).");
+		}
 		return std::move(keys);
 	}
 
